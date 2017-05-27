@@ -5,7 +5,7 @@ require "json"
 module Tomato
   class API
     attr_accessor :session_id, :host, :user, :pass
-    
+
     def initialize(host, user: 'root', pass: nil, session_id: nil)
       @host = host
       @user = user
@@ -13,7 +13,7 @@ module Tomato
       @session_id = session_id
     end
 
-    def get_devices
+    def devices
       ret = post('devlist')
       device_map = Hash.new { |h, k| h[k] = Device.new }
       ret['arplist'].each do |d|
@@ -33,27 +33,10 @@ module Tomato
         dev.name = name
         dev.lease_expires_in = expires_in
         dev.ip = ip
-        
+
       end
       device_map
     end
-
-    def get_bw_by_ip(interval: 1)
-      initial = post('iptmon')['iptmon']
-      sleep interval
-      now = post('iptmon')['iptmon']
-      out = now.map do |ip, now_data|
-        initial_data = initial[ip]
-        [
-          ip, 
-          Hash[now_data.map do |attr, value|
-            [attr, value - initial_data[attr]]
-          end]
-        ]
-      end
-      Hash[out]
-    end
-
 
     IPTRAFFIC_ATTRIBUTES = [
       :rx,
@@ -107,12 +90,13 @@ module Tomato
       data = {}
       str.split(/\n+/).reject { |l| l.strip == '' }.each do |line|
         key = line.match(/^(\w+)\s*=/)[1]
+        next if key == 'dhcpd_static' # this includes JS for split.
         line = line.sub(/^(\w+)\s*=\s*/, '').sub(/;\n*\Z/, '')
 
-        json = line.gsub(/(\w+)\s*:/, '"\1":').gsub(/'([^']+?)':/, '"\1":').gsub(/'/, '"')
+        json = line.gsub(/'([^']+?)':/, '"\1":').gsub(/'/, '"')
         data[key] = JSON.parse(json.gsub(/\b0x([0-9a-f]+)/) { |hex| hex.to_i(16) })
       end
-      
+
       data
     end
   end
